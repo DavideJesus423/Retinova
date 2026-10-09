@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+# Dados e modelos (NUNCA versionar dados de pacientes ou BRSET)
+data/
+ml/data/
+*.csv
+*.dcm
+*.jpg
+*.jpeg
+*.png
+*.tflite
+*.pt
+*.h5
+# Flutter
+app/.dart_tool/
+app/build/
+app/.flutter-plugins*
+app/.packages
+app/pubspec.lock
+.idea/
+.vscode/
+.DS_Store

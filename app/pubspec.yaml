@@ -1,0 +1,25 @@
+name: retinova
+description: Triagem de retinopatia diabética por celular, com IA offline que sabe quando não tem certeza.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.0.7
+  url_launcher: ^6.2.5
+  # Dias 3-4: inferência no aparelho
+  # tflite_flutter: ^0.10.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  # assets:
+  #   - assets/model.tflite
