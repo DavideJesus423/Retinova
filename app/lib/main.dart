@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/classifier.dart';
 import 'core/sync_queue.dart';
 import 'screens/home_screen.dart';
+import 'theme.dart';
 
 void main() => runApp(const RetinovaApp());
 
@@ -22,10 +23,8 @@ class _RetinovaAppState extends State<RetinovaApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Retinova',
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0B6E4F),
-        useMaterial3: true,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
       home: HomeScreen(classifier: _classifier, queue: _queue),
     );
   }

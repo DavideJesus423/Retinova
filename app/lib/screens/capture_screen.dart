@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import '../core/classifier.dart';
 import '../core/decision.dart';
 import '../core/sync_queue.dart';
+import '../theme.dart';
 import 'result_screen.dart';
+import 'uncertain_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key, required this.classifier, required this.queue});
@@ -33,14 +35,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (shot == null) return; // usuário cancelou
       final Decision d = await widget.classifier.classify(File(shot.path));
       if (!mounted) return;
+      // Certeza -> tela de resultado; dúvida -> tela de caso incerto.
+      final Widget next = d.uncertain
+          ? UncertainScreen(decision: d, queue: widget.queue)
+          : ResultScreen(decision: d);
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute<void>(
-          builder: (_) => ResultScreen(decision: d, queue: widget.queue),
-        ),
+        MaterialPageRoute<void>(builder: (_) => next),
       );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Não foi possível processar a imagem: $e');
+      if (mounted) {
+        setState(() => _error = 'Não foi possível processar a imagem: $e');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -50,27 +56,98 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Capturar retina')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Encaixe a lente adaptadora, alinhe com o olho do paciente e fotografe. '
-              'Evite reflexos e mantenha a imagem focada.',
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              icon: const Icon(Icons.camera_alt),
-              label: Text(_busy ? 'Processando...' : 'Abrir câmera'),
-              onPressed: _busy ? null : _capture,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.text,
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.remove_red_eye_outlined,
+                                  size: 72, color: Colors.white54),
+                              SizedBox(height: 12),
+                              Text(
+                                'A câmera abre ao tocar em "Tirar foto"',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const _Tip('Encaixe a lente adaptadora no celular'),
+                      const _Tip('Alinhe com o olho do paciente'),
+                      const _Tip('Evite reflexos e mantenha o foco'),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.camera_alt),
+                  label: Text(_busy ? 'Processando...' : 'Tirar foto'),
+                  onPressed: _busy ? null : _capture,
+                ),
+              ),
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _Tip extends StatelessWidget {
+  const _Tip(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: AppColors.text)),
+          ),
+        ],
       ),
     );
   }
