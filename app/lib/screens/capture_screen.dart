@@ -5,16 +5,23 @@ import 'package:image_picker/image_picker.dart';
 
 import '../core/classifier.dart';
 import '../core/decision.dart';
+import '../core/stats.dart';
 import '../core/sync_queue.dart';
 import '../theme.dart';
 import 'result_screen.dart';
 import 'uncertain_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key, required this.classifier, required this.queue});
+  const CaptureScreen({
+    super.key,
+    required this.classifier,
+    required this.queue,
+    required this.stats,
+  });
 
   final RetinaClassifier classifier;
   final SyncQueue queue;
+  final ScreeningStats stats;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
@@ -35,6 +42,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (shot == null) return; // usuário cancelou
       final Decision d = await widget.classifier.classify(File(shot.path));
       if (!mounted) return;
+      widget.stats.record(d);
       // Certeza -> tela de resultado; dúvida -> tela de caso incerto.
       final Widget next = d.uncertain
           ? UncertainScreen(decision: d, queue: widget.queue)

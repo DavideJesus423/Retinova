@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/classifier.dart';
+import 'core/stats.dart';
 import 'core/sync_queue.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
@@ -19,6 +20,7 @@ class _RetinovaAppState extends State<RetinovaApp> {
   // Trocar StubClassifier pelo classificador TFLite quando o modelo estiver pronto.
   final RetinaClassifier _classifier = StubClassifier();
   final SyncQueue _queue = SyncQueue();
+  final ScreeningStats _stats = ScreeningStats();
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +29,11 @@ class _RetinovaAppState extends State<RetinovaApp> {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       home: SplashScreen(
-        next: (_) => HomeScreen(classifier: _classifier, queue: _queue),
+        next: (_) => HomeScreen(
+          classifier: _classifier,
+          queue: _queue,
+          stats: _stats,
+        ),
       ),
     );
   }
