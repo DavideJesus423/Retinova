@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/classifier.dart';
 import 'core/sync_queue.dart';
 import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'theme.dart';
 
 void main() => runApp(const RetinovaApp());
@@ -25,7 +26,9 @@ class _RetinovaAppState extends State<RetinovaApp> {
       title: 'Retinova',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      home: HomeScreen(classifier: _classifier, queue: _queue),
+      home: SplashScreen(
+        next: (_) => HomeScreen(classifier: _classifier, queue: _queue),
+      ),
     );
   }
 }
