@@ -1,48 +1,51 @@
 import 'package:url_launcher/url_launcher.dart';
 
+import 'case_database.dart';
 import 'decision.dart';
-import 'risk.dart';
+import 'pending_case.dart';
 
-/// Caso incerto aguardando envio ao oftalmologista parceiro.
-/// Sem dados identificáveis do paciente (LGPD): só um id local e as probabilidades.
-class PendingCase {
-  PendingCase({required this.id, required this.probs, DateTime? createdAt})
-      : createdAt = createdAt ?? DateTime.now();
+export 'pending_case.dart';
 
-  final String id;
-  final List<double> probs;
-  final DateTime createdAt;
-
-  /// Formato: RETINOVA|id|risco-mais-provável|p0,p1,p2
-  String toSmsBody() {
-    var top = 0;
-    for (var k = 1; k < probs.length; k++) {
-      if (probs[k] > probs[top]) top = k;
-    }
-    final p = probs.map((v) => v.toStringAsFixed(2)).join(',');
-    return 'RETINOVA|$id|${Risk.values[top].name}|$p';
-  }
-}
-
-/// Fila local. Implementação em memória; trocar por sqflite para persistir (docs/ARQUITETURA.md).
+/// Fila de casos incertos esperando o especialista.
+///
+/// Guarda os casos em DOIS lugares:
+///  - memória (_items): leitura rápida; as telas leem daqui, sem esperar.
+///  - banco (disco): para não perder nada ao fechar o app.
+/// Ao abrir o app, load() copia o banco para a memória.
 class SyncQueue {
+  SyncQueue(this._db);
+
+  final CaseDatabase _db;
   final List<PendingCase> _items = [];
 
   List<PendingCase> get items => List.unmodifiable(_items);
 
-  PendingCase enqueue(Decision decision) {
+  /// Chamado uma vez ao abrir o app: traz do banco os casos ainda pendentes.
+  Future<void> load() async {
+    _items
+      ..clear()
+      ..addAll(await _db.pendingCases());
+  }
+
+  /// Cria o caso, mostra na memória na hora e grava no banco.
+  Future<PendingCase> enqueue(Decision decision) async {
     final c = PendingCase(
       id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
       probs: decision.probs,
     );
-    _items.add(c);
+    _items.add(c); // memória: aparece na tela imediatamente
+    await _db.insertCase(c); // disco: sobrevive ao fechar o app
     return c;
   }
 
-  void remove(String id) => _items.removeWhere((c) => c.id == id);
+  /// Marca como enviado: sai da fila de pendentes (fica no banco como 'sent').
+  Future<void> markSent(String id) async {
+    await _db.markSent(id);
+    _items.removeWhere((c) => c.id == id);
+  }
 
   /// Abre o app de SMS do aparelho com a mensagem pronta.
-  /// [phone] é o número do oftalmologista parceiro (configurar em tela de ajustes).
+  /// [phone] é o número do oftalmologista parceiro.
   Future<bool> sendBySms(PendingCase c, String phone) {
     final uri = Uri(
       scheme: 'sms',

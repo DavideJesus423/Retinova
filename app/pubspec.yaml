@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   image_picker: ^1.0.7
   url_launcher: ^6.2.5
+  sqflite: ^2.3.3
+  path: ^1.9.0
   # Dias 3-4: inferência no aparelho
   # tflite_flutter: ^0.10.4
 

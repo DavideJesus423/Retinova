@@ -42,7 +42,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
       if (shot == null) return; // usuário cancelou
       final Decision d = await widget.classifier.classify(File(shot.path));
       if (!mounted) return;
-      widget.stats.record(d);
+      await widget.stats.record(d); // grava no histórico (banco)
+      if (!mounted) return;
       // Certeza -> tela de resultado; dúvida -> tela de caso incerto.
       final Widget next = d.uncertain
           ? UncertainScreen(decision: d, queue: widget.queue)

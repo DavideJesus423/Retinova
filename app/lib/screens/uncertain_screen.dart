@@ -20,19 +20,38 @@ class _UncertainScreenState extends State<UncertainScreen> {
   // TODO(davi): número do oftalmologista parceiro (tela de ajustes ou constante).
   static const _partnerPhone = '+5500000000000';
 
-  late final PendingCase _queued;
+  // Fica vazio até o caso ser salvo no banco (leva uma fração de segundo).
+  PendingCase? _queued;
 
   @override
   void initState() {
     super.initState();
-    // TODO(davi): quando a fila usar o banco (async), mover para um método async.
-    _queued = widget.queue.enqueue(widget.decision);
+    _saveCase();
+  }
+
+  /// Salva o caso na fila (memória + banco). Só depois disso o botão
+  /// "Enviar para especialista" é liberado.
+  Future<void> _saveCase() async {
+    try {
+      final c = await widget.queue.enqueue(widget.decision);
+      if (!mounted) return;
+      setState(() => _queued = c);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível salvar o caso no aparelho.'),
+        ),
+      );
+    }
   }
 
   Future<void> _sendToSpecialist() async {
+    final queued = _queued;
+    if (queued == null) return;
     var opened = false;
     try {
-      opened = await widget.queue.sendBySms(_queued, _partnerPhone);
+      opened = await widget.queue.sendBySms(queued, _partnerPhone);
     } catch (_) {
       opened = false;
     }
@@ -122,7 +141,7 @@ class _UncertainScreenState extends State<UncertainScreen> {
                 child: FilledButton.icon(
                   icon: const Icon(Icons.send),
                   label: const Text('Enviar para especialista'),
-                  onPressed: _sendToSpecialist,
+                  onPressed: _queued == null ? null : _sendToSpecialist,
                 ),
               ),
               const SizedBox(height: 12),
