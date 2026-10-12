@@ -5,6 +5,9 @@ import 'screening_record.dart';
 
 export 'screening_record.dart';
 
+/// Qual histórico mostrar: tudo, ou só um tipo de resultado.
+enum HistoryFilter { all, ok, acompanhar, urgent, uncertain }
+
 /// Contadores e histórico das triagens, guardados no banco.
 /// Mesma ideia da fila: leitura pela memória, gravação também no disco.
 class ScreeningStats {
@@ -17,6 +20,21 @@ class ScreeningStats {
   int get uncertain => _records.where((r) => r.uncertain).length;
   int get urgent =>
       _records.where((r) => r.risk == Risk.encaminharUrgente).length;
+
+  bool _matches(HistoryFilter f, ScreeningRecord r) => switch (f) {
+        HistoryFilter.all => true,
+        HistoryFilter.ok => r.risk == Risk.ok,
+        HistoryFilter.acompanhar => r.risk == Risk.acompanhar,
+        HistoryFilter.urgent => r.risk == Risk.encaminharUrgente,
+        HistoryFilter.uncertain => r.uncertain,
+      };
+
+  /// Quantas triagens existem para esse filtro (usado nos cards da Home).
+  int count(HistoryFilter f) => _records.where((r) => _matches(f, r)).length;
+
+  /// Lista completa desse filtro, da mais recente para a mais antiga.
+  List<ScreeningRecord> history(HistoryFilter f) =>
+      _records.where((r) => _matches(f, r)).toList().reversed.toList();
 
   /// Últimas 5 triagens, da mais recente para a mais antiga.
   List<ScreeningRecord> get recent =>

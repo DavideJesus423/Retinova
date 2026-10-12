@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../core/classifier.dart';
+import '../core/format.dart';
 import '../core/stats.dart';
 import '../core/sync_queue.dart';
 import '../theme.dart';
 import '../widgets/connection_chip.dart';
 import 'capture_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -40,6 +42,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (mounted) setState(() {}); // atualiza contadores e histórico
+  }
+
+  void _openHistory(HistoryFilter filter) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => HistoryScreen(filter: filter, stats: widget.stats),
+      ),
+    );
   }
 
   void _syncNow() {
@@ -83,25 +94,47 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 24),
                     const _SectionTitle('Resumo'),
+                    _TotalCard(
+                      value: stats.count(HistoryFilter.all),
+                      onTap: () => _openHistory(HistoryFilter.all),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: _StatCard(
-                            icon: Icons.fact_check_outlined,
-                            label: 'Triagens',
-                            value: stats.total,
-                            color: AppColors.primary,
-                            tint: AppColors.primaryTint,
+                            icon: Icons.check_circle_outline,
+                            label: 'Ok',
+                            value: stats.count(HistoryFilter.ok),
+                            color: AppColors.ok,
+                            tint: AppColors.okTint,
+                            onTap: () => _openHistory(HistoryFilter.ok),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _StatCard(
+                            icon: Icons.schedule,
+                            label: 'Acompanhar',
+                            value: stats.count(HistoryFilter.acompanhar),
+                            color: AppColors.warn,
+                            tint: AppColors.warnTint,
+                            onTap: () => _openHistory(HistoryFilter.acompanhar),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
                             icon: Icons.warning_amber_rounded,
                             label: 'Urgentes',
-                            value: stats.urgent,
+                            value: stats.count(HistoryFilter.urgent),
                             color: AppColors.urgent,
                             tint: AppColors.urgentTint,
+                            onTap: () => _openHistory(HistoryFilter.urgent),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -109,9 +142,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: _StatCard(
                             icon: Icons.help_outline,
                             label: 'Não sei',
-                            value: stats.uncertain,
-                            color: AppColors.warn,
-                            tint: AppColors.warnTint,
+                            value: stats.count(HistoryFilter.uncertain),
+                            color: AppColors.textMuted,
+                            tint: AppColors.border,
+                            onTap: () => _openHistory(HistoryFilter.uncertain),
                           ),
                         ),
                       ],
@@ -119,7 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 24),
                     _PendingCard(count: pending, onSync: _syncNow),
                     const SizedBox(height: 24),
-                    const _SectionTitle('Últimas triagens'),
+                    _SectionTitle(
+                      'Últimas triagens',
+                      action: TextButton(
+                        onPressed: () => _openHistory(HistoryFilter.all),
+                        child: const Text('Ver tudo'),
+                      ),
+                    ),
                     _RecentList(records: stats.recent),
                     const SizedBox(height: 24),
                     const _SectionTitle('Como funciona'),
@@ -168,9 +208,6 @@ String _greeting() {
   if (h < 18) return 'Boa tarde';
   return 'Boa noite';
 }
-
-String _hhmm(DateTime t) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 class _Header extends StatelessWidget {
   const _Header({required this.online, required this.onChipLongPress});
@@ -277,21 +314,29 @@ class _Bubble extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.action});
 
   final String text;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-          color: AppColors.text,
-        ),
+      padding: EdgeInsets.only(bottom: action == null ? 10 : 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppColors.text,
+              ),
+            ),
+          ),
+          if (action != null) action!,
+        ],
       ),
     );
   }
@@ -303,6 +348,7 @@ BoxDecoration _cardDecoration() => BoxDecoration(
       border: Border.all(color: AppColors.border),
     );
 
+/// Card tocável: o InkWell dá o efeito de toque; o Ink desenha o fundo do card.
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.icon,
@@ -310,6 +356,7 @@ class _StatCard extends StatelessWidget {
     required this.value,
     required this.color,
     required this.tint,
+    required this.onTap,
   });
 
   final IconData icon;
@@ -317,35 +364,122 @@ class _StatCard extends StatelessWidget {
   final int value;
   final Color color;
   final Color tint;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
-            child: Icon(icon, size: 19, color: color),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '$value',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.text,
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: _cardDecoration(),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+                  child: Icon(icon, size: 19, color: color),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '$value',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.text,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card largo "Triagens": abre o histórico de todos os resultados.
+class _TotalCard extends StatelessWidget {
+  const _TotalCard({required this.value, required this.onTap});
+
+  final int value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: _cardDecoration(),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primaryTint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.fact_check_outlined,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Triagens',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Histórico de todos os resultados',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '$value',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -473,7 +607,7 @@ class _RecentRow extends StatelessWidget {
             ),
           ),
           Text(
-            _hhmm(record.time),
+            formatTime(record.time),
             style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
         ],
