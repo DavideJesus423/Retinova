@@ -32,13 +32,13 @@ class _CaptureScreenState extends State<CaptureScreen> {
   bool _busy = false;
   String? _error;
 
-  Future<void> _capture() async {
+  Future<void> _capture(ImageSource source) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final shot = await _picker.pickImage(source: ImageSource.camera);
+      final shot = await _picker.pickImage(source: source);
       if (shot == null) return; // usuário cancelou
       final Decision d = await widget.classifier.classify(File(shot.path));
       if (!mounted) return;
@@ -90,7 +90,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                                   size: 72, color: Colors.white54),
                               SizedBox(height: 12),
                               Text(
-                                'A câmera abre ao tocar em "Tirar foto"',
+                                'Tire uma foto ou escolha uma da galeria',
                                 style: TextStyle(color: Colors.white70),
                               ),
                             ],
@@ -129,7 +129,18 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         )
                       : const Icon(Icons.camera_alt),
                   label: Text(_busy ? 'Processando...' : 'Tirar foto'),
-                  onPressed: _busy ? null : _capture,
+                  onPressed:
+                      _busy ? null : () => _capture(ImageSource.camera),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Escolher da galeria'),
+                  onPressed:
+                      _busy ? null : () => _capture(ImageSource.gallery),
                 ),
               ),
             ],

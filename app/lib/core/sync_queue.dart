@@ -3,8 +3,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'case_database.dart';
 import 'decision.dart';
 import 'pending_case.dart';
+import 'received_case.dart';
+import 'risk.dart';
 
 export 'pending_case.dart';
+export 'received_case.dart';
 
 /// Fila de casos incertos esperando o especialista.
 ///
@@ -17,14 +20,23 @@ class SyncQueue {
 
   final CaseDatabase _db;
   final List<PendingCase> _items = [];
+  final List<ReceivedCase> _received = []; // painel do especialista
 
   List<PendingCase> get items => List.unmodifiable(_items);
+
+  /// Casos enviados (painel do especialista), do mais novo para o mais antigo.
+  List<ReceivedCase> get received => List.unmodifiable(_received);
+  int get reviewedCount => _received.where((c) => c.reviewed).length;
+  int get awaitingReviewCount => _received.length - reviewedCount;
 
   /// Chamado uma vez ao abrir o app: traz do banco os casos ainda pendentes.
   Future<void> load() async {
     _items
       ..clear()
       ..addAll(await _db.pendingCases());
+    _received
+      ..clear()
+      ..addAll(await _db.receivedCases());
   }
 
   /// Cria o caso, mostra na memória na hora e grava no banco.
@@ -41,7 +53,17 @@ class SyncQueue {
   /// Marca como enviado: sai da fila de pendentes (fica no banco como 'sent').
   Future<void> markSent(String id) async {
     await _db.markSent(id);
-    _items.removeWhere((c) => c.id == id);
+    final i = _items.indexWhere((c) => c.id == id);
+    if (i == -1) return;
+    final c = _items.removeAt(i);
+    _received.insert(0, ReceivedCase.fromPending(c, DateTime.now()));
+  }
+
+  /// O especialista registra a decisão sobre um caso recebido.
+  Future<void> setDecision(String id, Risk decision) async {
+    await _db.setDecision(id, decision);
+    final i = _received.indexWhere((c) => c.id == id);
+    if (i != -1) _received[i] = _received[i].withDecision(decision);
   }
 
   /// Abre o app de SMS do aparelho com a mensagem pronta.

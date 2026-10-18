@@ -10,9 +10,9 @@ abstract class RetinaClassifier {
 /// Classificador falso, só para o fluxo do app funcionar antes do modelo existir.
 /// Alterna resultados para exercitar todas as telas. NÃO usar fora do desenvolvimento.
 class StubClassifier implements RetinaClassifier {
-  StubClassifier({this.qhat = 0.5});
+  StubClassifier({this.qhats = const [0.5, 0.5, 0.5]});
 
-  final double qhat;
+  final List<double> qhats;
   int _calls = 0;
 
   static const _samples = <List<double>>[
@@ -26,6 +26,6 @@ class StubClassifier implements RetinaClassifier {
   Future<Decision> classify(File image) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     final probs = _samples[_calls++ % _samples.length];
-    return decide(probs, qhat);
+    return decide(probs, qhats);
   }
 }

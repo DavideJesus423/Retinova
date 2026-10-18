@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/classifier.dart';
+import '../core/connectivity_service.dart';
 import '../core/format.dart';
 import '../core/stats.dart';
 import '../core/sync_queue.dart';
+import '../core/sync_service.dart';
 import '../theme.dart';
 import '../widgets/connection_chip.dart';
 import 'capture_screen.dart';
 import 'history_screen.dart';
+import 'specialist_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -15,20 +20,49 @@ class HomeScreen extends StatefulWidget {
     required this.classifier,
     required this.queue,
     required this.stats,
+    required this.sync,
   });
 
   final RetinaClassifier classifier;
   final SyncQueue queue;
   final ScreeningStats stats;
+  final SyncService sync;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // TODO(davi): ligar ao connectivity_plus (onConnectivityChanged).
-  // Enquanto isso, toque longo no selo alterna o estado para testar o visual.
+  final _connectivity = ConnectivityService();
+  StreamSubscription<bool>? _connSub;
+
+  // Começa "offline" até a primeira checagem terminar (fração de segundo).
   bool _online = false;
+  bool _syncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1) Estado da rede agora.
+    _connectivity.checkNow().then(_onConnectionChanged);
+    // 2) Avisos sempre que a rede aparecer ou sumir (ex.: modo avião).
+    _connSub = _connectivity.onChanged.listen(_onConnectionChanged);
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel(); // para de escutar quando a tela sai
+    super.dispose();
+  }
+
+  void _onConnectionChanged(bool online) {
+    if (!mounted) return;
+    setState(() => _online = online);
+    // Voltou a rede e há casos esperando: envia sozinho.
+    if (online && widget.queue.items.isNotEmpty) {
+      _syncNow(manual: false);
+    }
+  }
 
   Future<void> _newScreening() async {
     await Navigator.push(
@@ -41,7 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (mounted) setState(() {}); // atualiza contadores e histórico
+    if (!mounted) return;
+    setState(() {}); // atualiza contadores e histórico
+    // Se já há rede, não precisa esperar: envia o que ficou na fila.
+    if (_online && widget.queue.items.isNotEmpty) {
+      _syncNow(manual: false);
+    }
   }
 
   void _openHistory(HistoryFilter filter) {
@@ -53,11 +92,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _syncNow() {
-    // TODO(davi): enviar os casos pendentes e marcar como enviados.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sincronização ainda não implementada.')),
+  Future<void> _openSpecialist() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => SpecialistScreen(queue: widget.queue),
+      ),
     );
+    if (mounted) setState(() {}); // atualiza o contador de avaliados
+  }
+
+  /// Envia os casos pendentes. [manual] = o usuário tocou no botão
+  /// (aí avisamos também quando não há rede ou não há nada a enviar).
+  Future<void> _syncNow({bool manual = true}) async {
+    if (_syncing) return;
+    if (!_online) {
+      if (manual) {
+        _showMessage(
+          'Sem internet. Os casos continuam salvos e serão enviados '
+          'quando a rede voltar.',
+        );
+      }
+      return;
+    }
+    setState(() => _syncing = true);
+    final sent = await widget.sync.syncAll();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    if (sent > 0) {
+      _showMessage(sent == 1 ? '1 caso enviado.' : '$sent casos enviados.');
+    } else if (manual) {
+      _showMessage('Nenhum caso foi enviado. Tente de novo em instantes.');
+    }
+  }
+
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -67,10 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _Header(
-            online: _online,
-            onChipLongPress: () => setState(() => _online = !_online),
-          ),
+          _Header(online: _online, onSpecialist: _openSpecialist),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -151,7 +220,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    _PendingCard(count: pending, onSync: _syncNow),
+                    _PendingCard(
+                      count: pending,
+                      syncing: _syncing,
+                      reviewed: widget.queue.reviewedCount,
+                      onSync: _syncNow,
+                    ),
                     const SizedBox(height: 24),
                     _SectionTitle(
                       'Últimas triagens',
@@ -210,10 +284,10 @@ String _greeting() {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.online, required this.onChipLongPress});
+  const _Header({required this.online, required this.onSpecialist});
 
   final bool online;
-  final VoidCallback onChipLongPress;
+  final VoidCallback onSpecialist;
 
   @override
   Widget build(BuildContext context) {
@@ -284,7 +358,27 @@ class _Header extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  ConnectionChip(online: online, onLongPress: onChipLongPress),
+                  Row(
+                    children: [
+                      ConnectionChip(online: online),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: onSpecialist,
+                        icon: const Icon(Icons.medical_services_outlined,
+                            size: 16, color: Colors.white),
+                        label: const Text(
+                          'Modo especialista',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0x26FFFFFF),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 34),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -486,13 +580,35 @@ class _TotalCard extends StatelessWidget {
 }
 
 class _PendingCard extends StatelessWidget {
-  const _PendingCard({required this.count, required this.onSync});
+  const _PendingCard({
+    required this.count,
+    required this.syncing,
+    required this.reviewed,
+    required this.onSync,
+  });
 
   final int count;
+  final bool syncing;
+  final int reviewed;
   final VoidCallback onSync;
 
   @override
   Widget build(BuildContext context) {
+    String subtitle;
+    if (syncing) {
+      subtitle = 'Enviando...';
+    } else if (count == 0) {
+      subtitle = 'Nenhum caso pendente';
+    } else if (count == 1) {
+      subtitle = '1 caso salvo no aparelho';
+    } else {
+      subtitle = '$count casos salvos no aparelho';
+    }
+    if (reviewed > 0 && !syncing) {
+      subtitle += reviewed == 1
+          ? ' · 1 avaliado'
+          : ' · $reviewed avaliados';
+    }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -505,7 +621,12 @@ class _PendingCard extends StatelessWidget {
               color: AppColors.primaryTint,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.sync, color: AppColors.primary),
+            child: syncing
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : const Icon(Icons.sync, color: AppColors.primary),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -521,7 +642,7 @@ class _PendingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  count == 1 ? '1 caso salvo no aparelho' : '$count casos salvos no aparelho',
+                  subtitle,
                   style: const TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 13,
@@ -530,8 +651,9 @@ class _PendingCard extends StatelessWidget {
               ],
             ),
           ),
+          // Só fica ativo quando há casos e não está enviando.
           FilledButton.tonal(
-            onPressed: count == 0 ? null : onSync,
+            onPressed: (count == 0 || syncing) ? null : onSync,
             child: const Text('Enviar'),
           ),
         ],

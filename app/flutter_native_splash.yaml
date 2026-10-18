@@ -1,0 +1,12 @@
+# Gera a tela que o Android mostra ANTES do Flutter carregar
+# (é ela que mostrava o logo do Flutter). Rodar: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/logo.png
+  android: true
+  ios: false
+  web: false
+  android_12:
+    color: "#FFFFFF"
+    image: assets/icon/icon_foreground.png
+    icon_background_color: "#FFFFFF"

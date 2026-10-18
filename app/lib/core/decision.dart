@@ -12,15 +12,16 @@ class Decision {
   final List<double> probs;
 }
 
-/// Conformal prediction: conjunto = {k : p_k >= 1 - qhat}.
-/// Exatamente uma classe -> decide; caso contrário -> "não sei".
+/// Conformal prediction com um limiar (qhat) POR CLASSE:
+/// a classe k entra no conjunto se p_k >= 1 - qhat_k.
+/// Exatamente uma classe no conjunto -> decide; senão -> "não sei".
 /// Deve se comportar igual a ml/src/retinova/conformal.py.
-Decision decide(List<double> probs, double qhat) {
+Decision decide(List<double> probs, List<double> qhats) {
   assert(probs.length == Risk.values.length);
-  final threshold = 1.0 - qhat;
+  assert(qhats.length == Risk.values.length);
   final inSet = <int>[
     for (var k = 0; k < probs.length; k++)
-      if (probs[k] >= threshold) k,
+      if (probs[k] >= 1.0 - qhats[k]) k,
   ];
   if (inSet.length == 1) {
     return Decision.certain(Risk.values[inSet.first], probs);

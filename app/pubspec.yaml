@@ -13,8 +13,10 @@ dependencies:
   url_launcher: ^6.2.5
   sqflite: ^2.3.3
   path: ^1.9.0
-  # Dias 3-4: inferência no aparelho
-  # tflite_flutter: ^0.10.4
+  connectivity_plus: ^6.0.3
+  # Inferência do modelo no aparelho
+  tflite_flutter: ^0.12.1
+  image: ^4.2.0
 
 dev_dependencies:
   flutter_test:
@@ -25,4 +27,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
-    # - assets/model.tflite
+    - assets/retinova_float32.tflite

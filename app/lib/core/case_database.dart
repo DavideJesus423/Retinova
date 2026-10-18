@@ -2,6 +2,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import 'pending_case.dart';
+import 'received_case.dart';
+import 'risk.dart';
 import 'screening_record.dart';
 
 /// Banco de dados local (SQLite). Fica num arquivo dentro do celular e
@@ -21,7 +23,7 @@ class CaseDatabase {
 
     final db = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       // onCreate roda UMA vez, quando o arquivo ainda não existe.
       onCreate: (db, version) async {
         // Tabela dos casos incertos que vão para o especialista.
@@ -34,7 +36,9 @@ class CaseDatabase {
             id TEXT PRIMARY KEY,
             probs TEXT NOT NULL,
             created_at INTEGER NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending'
+            status TEXT NOT NULL DEFAULT 'pending',
+            sent_at INTEGER,
+            decision INTEGER
           )
         ''');
 
@@ -48,6 +52,16 @@ class CaseDatabase {
             created_at INTEGER NOT NULL
           )
         ''');
+      },
+      // onUpgrade roda quando o app tem uma versão do banco mais nova que a do
+      // celular. Aqui só ACRESCENTAMOS colunas: os dados antigos ficam intactos.
+      //  - sent_at: quando o caso foi enviado
+      //  - decision: o que o especialista decidiu (0, 1 ou 2; vazio = aguardando)
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE cases ADD COLUMN sent_at INTEGER');
+          await db.execute('ALTER TABLE cases ADD COLUMN decision INTEGER');
+        }
       },
     );
     return CaseDatabase._(db);
@@ -79,7 +93,28 @@ class CaseDatabase {
   Future<void> markSent(String id) async {
     await _db.update(
       'cases',
-      {'status': 'sent'},
+      {'status': 'sent', 'sent_at': DateTime.now().millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// SELECT: casos já enviados (os que o especialista "recebeu"), do mais novo.
+  Future<List<ReceivedCase>> receivedCases() async {
+    final rows = await _db.query(
+      'cases',
+      where: 'status = ?',
+      whereArgs: ['sent'],
+      orderBy: 'COALESCE(sent_at, created_at) DESC',
+    );
+    return rows.map(ReceivedCase.fromMap).toList();
+  }
+
+  /// UPDATE: grava a decisão do especialista num caso.
+  Future<void> setDecision(String id, Risk decision) async {
+    await _db.update(
+      'cases',
+      {'decision': decision.index},
       where: 'id = ?',
       whereArgs: [id],
     );

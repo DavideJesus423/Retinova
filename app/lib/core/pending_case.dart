@@ -1,5 +1,3 @@
-import 'risk.dart';
-
 /// Um caso incerto ("não sei") esperando para ir ao oftalmologista.
 /// Não guarda nome nem dado do paciente (LGPD): só um id e as probabilidades.
 class PendingCase {
@@ -27,13 +25,12 @@ class PendingCase {
             DateTime.fromMillisecondsSinceEpoch(map['created_at']! as int),
       );
 
-  /// Formato do SMS: RETINOVA|id|risco-mais-provável|p0,p1,p2
+  /// Formato do SMS: RETINOVA|id|incerto|p0,p1,p2
+  /// O campo de risco é sempre "incerto": o app NÃO decidiu, quem decide é o
+  /// oftalmologista. As probabilidades (ok, acompanhar, urgente) vão como
+  /// apoio para ele.
   String toSmsBody() {
-    var top = 0;
-    for (var k = 1; k < probs.length; k++) {
-      if (probs[k] > probs[top]) top = k;
-    }
     final p = probs.map((v) => v.toStringAsFixed(2)).join(',');
-    return 'RETINOVA|$id|${Risk.values[top].name}|$p';
+    return 'RETINOVA|$id|incerto|$p';
   }
 }
