@@ -41,6 +41,20 @@ def test_decide_abstains_when_two_classes():
     assert out[0] == -1
 
 
+def test_decide_with_per_class_qhat():
+    # Os mesmos qhat usados no app: ok exige 0.919, acompanhar 0.374, urgente 0.253.
+    qhat = np.array([0.0812157714667383, 0.6256589928986585, 0.7467765468872558])
+    probs = np.array(
+        [
+            [0.95, 0.03, 0.02],  # só "ok" passa -> ok
+            [0.85, 0.10, 0.05],  # ninguém passa -> não sei
+            [0.50, 0.40, 0.10],  # só "acompanhar" passa -> acompanhar
+            [0.20, 0.40, 0.40],  # duas passam -> não sei
+        ]
+    )
+    assert conformal.decide(probs, qhat).tolist() == [0, -1, 1, -1]
+
+
 def test_calibrate_validates_input():
     with pytest.raises(ValueError):
         conformal.calibrate(np.zeros((0, 3)), np.zeros(0), 0.1)
